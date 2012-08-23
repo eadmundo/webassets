@@ -41,7 +41,8 @@ class ExternalAssets(object):
             raise ExternalAssetsError('You must set the external_assets_output_folder config value')
         try:
             versioned = self.get_versioned_file(file_name)
-            return path.join(output_folder, path.basename(versioned))
+            # we want to preserve the folders
+            return path.join(output_folder, versioned.replace('%s/' % self.env.abspath(''),''))
         except IOError:
             return file_name
 
