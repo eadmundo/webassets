@@ -20,27 +20,39 @@ class ExternalAssets(object):
 
         self.folders = folders
         self.debug = None
-        #self.version = options.pop('version', [])
+        self.seps = ('?','#')
 
     def get_versioned_file(self, file_name):
+        suffix = None
+        for sep in self.seps:
+            if sep in file_name:
+                parts = list(self.rpartition_file_name(file_name, sep))
+                parts.pop(0)
+                suffix = ''.join(parts)
         version = self.get_version(file_name)
         bits = file_name.split('.')
         bits.insert(len(bits)-1, version)
-        return '.'.join(bits)
+        versioned = '.'.join(bits)
+        return versioned
 
     def versioned_folder(self, file_name):
         output_folder = self.env.config.get('external_assets_output_folder', None)
         if output_folder is None:
             raise ExternalAssetsError('You must set the external_assets_output_folder config value')
-        versioned = self.get_versioned_file(file_name)
-        return path.join(output_folder, path.basename(versioned))
+        try:
+            versioned = self.get_versioned_file(file_name)
+            return path.join(output_folder, path.basename(versioned))
+        except IOError:
+            return file_name
 
     def get_output_path(self, file_name):
+        file_name = self.clean_file_name(file_name)
         return self.env.abspath(self.versioned_folder(file_name))
 
     def write_file(self, file_name):
-        output_path = self.get_output_path(file_name)
-        hunk = FileHunk(self.env.abspath(file_name))
+        clean_file_name = self.clean_file_name(file_name)
+        output_path = self.get_output_path(clean_file_name)
+        hunk = FileHunk(self.env.abspath(clean_file_name))
         output_dir = path.dirname(output_path)
         if not path.exists(output_dir):
             os.makedirs(output_dir)
@@ -59,6 +71,7 @@ class ExternalAssets(object):
             print self.env.manifest.get_manifest()
 
     def url(self, file_name):
+        file_name = self.clean_file_name(file_name)
         # resolve debug
         debug = self.debug if self.debug is not None else self.env.debug
         if debug:
@@ -71,7 +84,17 @@ class ExternalAssets(object):
                 self.write_file(file_name)
         return url
 
+    def rpartition_file_name(self, file_name, sep):
+        return file_name.rpartition(sep)
+
+    def clean_file_name(self, file_name):
+        for sep in self.seps:
+            if sep in file_name:
+                return self.rpartition_file_name(file_name, sep)[0]
+        return file_name
+
     def get_version(self, file_name):
+        file_name = self.clean_file_name(file_name)
         version = None
         if self.env.manifest:
             version = self.env.manifest.query_file(file_name, self.env)
